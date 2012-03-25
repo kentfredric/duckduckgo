@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Carp;
 use DDG::ZeroClickInfo;
+use Package::Stash;
 
 sub zeroclickinfo_attributes {qw(
 	abstract
@@ -39,36 +40,35 @@ sub apply_keywords {
 	return if exists $applied{$target};
 	$applied{$target} = undef;
 
+	my $stash = Package::Stash->new( $target );
+
 	my @parts = split('::',$target);
 	shift @parts;
 	shift @parts;
 	my $answer_type = lc(join(' ',@parts));
 	
-	{
-		my %zci_params = (
-			answer_type => $answer_type,
-		);
-		no strict "refs";
+	my %zci_params = (
+		answer_type => $answer_type,
+	);
 
-		*{"${target}::zci_new"} = sub {
-			shift;
-			DDG::ZeroClickInfo->new( %zci_params, ref $_[0] eq 'HASH' ? %{$_[0]} : @_ );
-		};
-		*{"${target}::zci"} = sub {
-			if (ref $_[0] eq 'HASH') {
-				for (keys %{$_[0]}) {
-					$zci_params{check_zeroclickinfo_key($_)} = $_[0]->{$_};
-				}
-			} else {
-				while (@_) {
-					my $key = shift;
-					my $value = shift;
-					$zci_params{check_zeroclickinfo_key($key)} = $value;
-				}
+	$stash->add_symbol('&zci_new', sub {
+		shift;
+		DDG::ZeroClickInfo->new( %zci_params, ref $_[0] eq 'HASH' ? %{$_[0]} : @_ );
+	});
+
+	$stash->add_symbol('&zci', sub {
+		if (ref $_[0] eq 'HASH') {
+			for (keys %{$_[0]}) {
+				$zci_params{check_zeroclickinfo_key($_)} = $_[0]->{$_};
 			}
-		};
-	}
-
+		} else {
+			while (@_) {
+				my $key = shift;
+				my $value = shift;
+				$zci_params{check_zeroclickinfo_key($key)} = $value;
+			}
+		}
+	});
 }
 
 1;

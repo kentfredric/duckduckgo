@@ -3,6 +3,7 @@ package DDG::Test::Goodie;
 use strict;
 use warnings;
 use Carp;
+use Package::Stash;
 use Test::More;
 use DDG::Test;
 use DDG::ZeroClickInfo;
@@ -11,31 +12,30 @@ sub import {
 	my ( $class, %params ) = @_;
 	my $target = caller;
 
-	{
-		no strict "refs";
+	my $stash = Package::Stash->new( $target );
 
-		my %zci_params;
+	my %zci_params;
 
-		*{"${target}::test_zci"} = sub {
-			my $answer = shift;
-			ref $_[0] eq 'HASH' ? 
-				DDG::ZeroClickInfo->new(%zci_params, %{$_[0]}, answer => $answer ) :
-				DDG::ZeroClickInfo->new(%zci_params, @_, answer => $answer )
-		};
+	$stash->add_symbol('&test_zci', sub {
+		my $answer = shift;
+		ref $_[0] eq 'HASH' ? 
+			DDG::ZeroClickInfo->new(%zci_params, %{$_[0]}, answer => $answer ) :
+			DDG::ZeroClickInfo->new(%zci_params, @_, answer => $answer )
+	});
 
-		*{"${target}::zci"} = sub {
-			if (ref $_[0] eq 'HASH') {
-				for (keys %{$_[0]}) {
-					$zci_params{$_} = $_[0]->{$_};
-				}
-			} else {
-				while (@_) {
-					my $key = shift;
-					my $value = shift;
-					$zci_params{$key} = $value;
-				}
+	$stash->add_symbol('&zci', sub {
+		if (ref $_[0] eq 'HASH') {
+			for (keys %{$_[0]}) {
+				$zci_params{$_} = $_[0]->{$_};
 			}
-		};
+		} else {
+			while (@_) {
+				my $key = shift;
+				my $value = shift;
+				$zci_params{$key} = $value;
+			}
+		}
+	});
 
 		*{"${target}::ddg_goodie_test"} = sub { block_test(sub {
 			my $query = shift;
@@ -54,8 +54,9 @@ sub import {
 			} else {
 				fail('Expected result but dont get one on '.$query);
 			}
-		},@_)};
-	}
+		},@_)
+	
+	});
 
 }
 

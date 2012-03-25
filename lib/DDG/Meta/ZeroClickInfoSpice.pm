@@ -3,6 +3,7 @@ package DDG::Meta::ZeroClickInfoSpice;
 use strict;
 use warnings;
 use Carp;
+use Package::Stash;
 use DDG::ZeroClickInfo::Spice;
 
 sub zeroclickinfospice_attributes {qw(
@@ -28,36 +29,34 @@ sub apply_keywords {
 	
 	return if exists $applied{$target};
 	$applied{$target} = undef;
+	my $stash = Package::Stash->new( $target );
 
 	my @parts = split('::',$target);
 	shift @parts;
 	shift @parts;
 	my $answer_type = lc(join(' ',@parts));
 	
-	{
-		my %zcispice_params = (
-			caller => $target,
-		);
-		no strict "refs";
+	my %zcispice_params = (
+		caller => $target,
+	);
 
-		*{"${target}::spice_new"} = sub {
+	$stash->add_symbol('&spice_new', sub {
 			shift;
 			DDG::ZeroClickInfo::Spice->new(%zcispice_params, ref $_[0] eq 'HASH' ? %{$_[0]} : @_)
-		};
-		*{"${target}::spice"} = sub {
-			if (ref $_[0] eq 'HASH') {
-				for (keys %{$_[0]}) {
-					$zcispice_params{check_zeroclickinfospice_key($_)} = $_[0]->{$_};
-				}
-			} else {
-				while (@_) {
-					my $key = shift;
-					my $value = shift;
-					$zcispice_params{check_zeroclickinfospice_key($key)} = $value;
-				}
+	});
+	$stash->add_symbol('&spice', sub {
+		if (ref $_[0] eq 'HASH') {
+			for (keys %{$_[0]}) {
+				$zcispice_params{check_zeroclickinfospice_key($_)} = $_[0]->{$_};
 			}
-		};
-	}
+		} else {
+			while (@_) {
+				my $key = shift;
+				my $value = shift;
+				$zcispice_params{check_zeroclickinfospice_key($key)} = $value;
+			}
+		}
+	});
 
 }
 
